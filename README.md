@@ -339,9 +339,8 @@ project/
 │       ├── requirements.txt
 │       └── car_price_model.joblib
 │
-├── data/
 ├── notebooks/
-│   └── HauNguyen_st127260_A1_Predicting_Car_final(5).ipynb
+│   └── HauNguyen_st127260_A1_Predicting_Car_final.ipynb
 │
 └── README.md
 ```
