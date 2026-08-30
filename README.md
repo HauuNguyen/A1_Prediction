@@ -2,28 +2,34 @@
 
 ## Project Overview
 
-This project develops a machine-learning model to predict the selling price of used cars.
+This project develops a machine-learning regression model to predict the selling price of used cars.
 
-The workflow includes:
+The project follows a complete machine-learning workflow:
+
 - Data loading and inspection
 - Exploratory data analysis (EDA)
-- Data cleaning and preprocessing
+- Data cleaning
+- Feature engineering
 - Train/test splitting
-- Log transformation of the target
+- Target log transformation
 - Preprocessing pipelines
 - Model comparison using 5-fold cross-validation
-- Random Forest model selection
+- Model selection
 - Hyperparameter tuning with GridSearchCV
 - Final evaluation on the untouched test set
 - Feature-importance analysis
-- A Dash prediction application
+- Model saving with Joblib
+- Dash prediction application
 - Docker support
+- Public deployment
 
 The target variable is `selling_price`.
 
+---
+
 ## Dataset
 
-The raw dataset contains 8,128 rows and 13 columns:
+The raw Car Price dataset contains 8,128 rows and 13 columns:
 
 - `name`
 - `year`
@@ -39,80 +45,158 @@ The raw dataset contains 8,128 rows and 13 columns:
 - `torque`
 - `seats`
 
-Missing values occur in `mileage`, `engine`, `max_power`, `torque`, and `seats`.
+Missing values occur in several features, including:
 
-## Data Cleaning
+- `mileage`
+- `engine`
+- `max_power`
+- `torque`
+- `seats`
 
-### Remove CNG and LPG
+The dataset was cleaned according to the requirements of the assignment.
 
-CNG and LPG vehicles were removed because their mileage is measured in km/kg, while Diesel and Petrol vehicles use km/l. Keeping these measurements together would make the `mileage` feature inconsistent.
+---
 
-### Remove Test Drive Cars
+# Data Cleaning and Feature Engineering
 
-Test Drive Cars were removed because their selling prices are unusually high compared with normal used cars and could distort the prediction model.
+## Remove CNG and LPG
 
-### Create `brand`
+CNG and LPG vehicles were removed from the dataset.
 
-The first word of `name` was extracted as `brand`.
+The reason is that CNG and LPG mileage is measured in `km/kg`, while Diesel and Petrol mileage is measured in `kmpl` (km/l).
 
-Examples:
+Combining these different measurement systems would make the `mileage` feature inconsistent and could negatively affect the model.
 
-```text
-Maruti Swift Dzire VDI -> Maruti
-Skoda Rapid 1.5 TDI Ambition -> Skoda
-Honda City 2017-2020 EXi -> Honda
-```
+---
 
-The original `name` column was then removed because it has very high categorical variety.
+## Owner Mapping
 
-### Remove `torque`
+The `owner` feature was converted from categorical text into numerical values.
 
-The `torque` feature was removed as required by the assignment. Its values have inconsistent textual formats and would require additional parsing.
-
-### Clean numerical features
-
-- `mileage`: remove `kmpl` and convert to float
-- `engine`: remove `CC` and convert to float
-- `max_power`: remove `bhp` and convert to numeric
-
-### Encode `owner`
-
-The owner categories were mapped as:
+The mapping was:
 
 ```text
 First Owner          -> 1
 Second Owner         -> 2
 Third Owner          -> 3
 Fourth & Above Owner -> 4
+Test Drive Car       -> 5
 ```
 
-## Exploratory Data Analysis
+After applying the mapping, all samples belonging to `Test Drive Car` were removed.
 
-EDA was used to understand the target distribution and feature relationships.
+Test Drive Cars were excluded because their selling prices were extremely high compared with normal used cars. Including them could distort the model's predictions for ordinary used vehicles.
 
-The raw `selling_price` distribution is strongly right-skewed: most vehicles have lower prices, while a smaller number have very high prices.
+---
 
-Because of this large range and skewness, the target was log-transformed for model training.
+## Create `brand`
 
-## Target Log Transformation
+The original `name` feature contains detailed vehicle names with many unique values.
 
-The training target was transformed using:
+Instead of using the complete name, the first word was extracted as the `brand`.
 
-```python
-y_train_log = np.log(y_train)
+Examples:
+
+```text
+Maruti Swift Dzire VDI       -> Maruti
+Skoda Rapid 1.5 TDI Ambition -> Skoda
+Honda City 2017-2020 EXi     -> Honda
+Hyundai i20 Sportz Diesel    -> Hyundai
 ```
 
-Therefore, the models predict `log(selling_price)` rather than the original price.
+The original `name` column was then removed.
 
-Before calculating final metrics on the original price scale, predictions are converted back using:
+Using `brand` instead of the complete vehicle name reduces the number of categorical levels while retaining useful information about the manufacturer.
 
-```python
-predicted_price = np.exp(predicted_log_price)
+---
+
+## Remove `torque`
+
+The `torque` feature was removed as required by the assignment.
+
+The feature contains textual values in different formats, which would require additional parsing and interpretation. Since the assignment explicitly asks to drop this feature, it was excluded from the final model.
+
+---
+
+## Clean Numerical Features
+
+### Mileage
+
+The `mileage` feature originally contains values such as:
+
+```text
+23.4 kmpl
+19.7 kmpl
+17.0 kmpl
 ```
 
-This inverse transformation is essential because the real `y_test` values are stored in the original selling-price scale.
+The `kmpl` unit was removed and the values were converted to numerical values.
 
-## Train/Test Split
+For example:
+
+```text
+23.4 kmpl -> 23.4
+```
+
+### Engine
+
+The `engine` feature originally contains values such as:
+
+```text
+1248 CC
+1498 CC
+1197 CC
+```
+
+The `CC` unit was removed and the values were converted to numerical values.
+
+For example:
+
+```text
+1248 CC -> 1248
+```
+
+### Max Power
+
+The `max_power` feature originally contains values with the `bhp` unit.
+
+The unit was removed and the feature was converted to numerical values.
+
+---
+
+# Exploratory Data Analysis
+
+EDA was performed before model training to understand the dataset, feature distributions, missing values, categorical variables, and relationships between features and the target.
+
+Several plots were used to investigate the data.
+
+## Selling Price Distribution
+
+The original `selling_price` distribution is strongly right-skewed.
+
+Most cars have relatively low selling prices, while a smaller number of vehicles have substantially higher prices.
+
+This large range and skewness motivated the use of a logarithmic transformation of the target.
+
+## Feature Relationships
+
+The numerical features were examined using descriptive statistics, distributions, and correlation analysis.
+
+Important relationships were observed between selling price and vehicle characteristics such as:
+
+- `year`
+- `max_power`
+- `engine`
+- `km_driven`
+- `mileage`
+
+In general, newer vehicles and vehicles with stronger performance-related characteristics tend to have higher selling prices.
+
+However, correlation does not imply causation, and the relationships between features and price are not necessarily linear. This was one reason why nonlinear models such as Random Forest and Gradient Boosting were also evaluated.
+
+---
+
+# Train/Test Split
 
 The target was separated from the features:
 
@@ -121,7 +205,7 @@ X = df.drop(columns=["selling_price"])
 y = df["selling_price"]
 ```
 
-The data was split into training and test sets:
+The dataset was split into training and test sets:
 
 ```python
 X_train, X_test, y_train, y_test = train_test_split(
@@ -132,55 +216,95 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 ```
 
-The test set was kept separate for final evaluation.
+The test set was kept completely separate from model selection and hyperparameter tuning.
 
-The training target was then log-transformed:
+This is important because the test set should provide an unbiased estimate of how the final model performs on unseen data.
+
+---
+
+# Target Log Transformation
+
+The selling prices have a large range and a strong right-skewed distribution.
+
+Therefore, the training target was log-transformed:
 
 ```python
 y_train_log = np.log(y_train)
 ```
 
-Preprocessing was placed inside the machine-learning pipeline so that preprocessing is learned from the appropriate training data during cross-validation.
+The models were trained to predict:
 
-## Preprocessing
+```text
+log(selling_price)
+```
 
-A `ColumnTransformer` was used to apply different preprocessing to different feature groups.
+rather than the original selling price.
 
-### Continuous features
+This transformation reduces the effect of extremely large target values and makes the target distribution more suitable for regression.
 
-The continuous features were:
+During inference, the predicted log-price was transformed back to the original price scale:
+
+```python
+predicted_price = np.exp(predicted_log_price)
+```
+
+The final evaluation metrics were calculated on the original selling-price scale.
+
+---
+
+# Preprocessing
+
+Preprocessing was implemented using a `ColumnTransformer` and included inside the machine-learning pipeline.
+
+This prevents preprocessing from being fitted using information from the validation or test data.
+
+## Continuous Numerical Features
+
+The continuous numerical features are:
 
 - `km_driven`
 - `mileage`
 - `engine`
 - `max_power`
 
-Missing values were imputed using the median and these features were standardized using `StandardScaler`.
+Missing values were handled using median imputation.
 
-### Other numerical features
+The features were then standardized using:
 
-The following numerical features were handled separately:
+```text
+StandardScaler
+```
+
+## Other Numerical Features
+
+The following features were handled separately:
 
 - `year`
 - `owner`
 - `seats`
 
-Missing values were imputed using the most frequent value.
+Missing values were handled using the most frequent value.
 
-### Categorical features
+## Categorical Features
 
-The following categorical features were one-hot encoded:
+The categorical features are:
 
 - `brand`
 - `fuel`
 - `seller_type`
 - `transmission`
 
-`OneHotEncoder(handle_unknown="ignore")` was used so unknown categories do not cause prediction errors.
+These features were one-hot encoded using:
 
-The preprocessing steps were included in the model pipeline to avoid fitting preprocessing outside the appropriate training data.
+```python
+OneHotEncoder(handle_unknown="ignore")
+```
 
-## Model Comparison
+`handle_unknown="ignore"` allows the model to make predictions even if a category appears during inference that was not present in the training data.
+
+---
+
+# Model Comparison
 
 Five regression models were compared using 5-fold cross-validation:
 
@@ -190,7 +314,7 @@ Five regression models were compared using 5-fold cross-validation:
 - Gradient Boosting
 - Support Vector Regression (SVR)
 
-The comparison metric was RMSE on the log-transformed target.
+The comparison metric was RMSE calculated on the log-transformed target.
 
 | Model | CV RMSE |
 |---|---:|
@@ -202,15 +326,23 @@ The comparison metric was RMSE on the log-transformed target.
 
 Lower RMSE indicates better performance.
 
-Random Forest achieved the lowest CV RMSE (`0.213107`) and was selected for hyperparameter tuning.
+Random Forest achieved the lowest cross-validation RMSE:
 
-Random Forest performed well because it can model nonlinear relationships and interactions between vehicle characteristics.
+```text
+Random Forest: 0.213107
+```
 
-## Hyperparameter Tuning
+Therefore, Random Forest was selected for further hyperparameter tuning.
 
-GridSearchCV was applied to the selected Random Forest model.
+Random Forest performed well because it can capture nonlinear relationships and interactions between vehicle characteristics without assuming that the relationship between each feature and price is linear.
 
-The searched parameters were:
+---
+
+# Hyperparameter Tuning
+
+GridSearchCV was applied to the Random Forest model.
+
+The following parameters were searched:
 
 ```python
 {
@@ -232,11 +364,27 @@ min_samples_split = 5
 min_samples_leaf = 1
 ```
 
-## Final Model
+---
 
-The final model is a preprocessing pipeline followed by the tuned Random Forest regressor.
+# Final Model
 
-Random Forest parameters:
+The final model is a complete preprocessing and regression pipeline.
+
+The pipeline includes:
+
+```text
+Input Data
+    ↓
+Missing-value handling
+    ↓
+Scaling numerical features
+    ↓
+One-hot encoding categorical features
+    ↓
+Random Forest Regressor
+```
+
+The final Random Forest parameters are:
 
 ```text
 n_estimators = 200
@@ -246,11 +394,21 @@ min_samples_leaf = 1
 random_state = 42
 ```
 
-## Final Test Evaluation
+The complete trained pipeline was saved using Joblib.
 
-The final model was evaluated on the untouched test set.
+---
 
-Predictions were converted from log-price back to the original price scale using `np.exp()`.
+# Final Test Evaluation
+
+The final model was evaluated using the untouched test set.
+
+Predictions were converted from log-price back to the original selling-price scale using:
+
+```python
+predicted_price = np.exp(predicted_log_price)
+```
+
+The final results were:
 
 | Metric | Result |
 |---|---:|
@@ -258,39 +416,46 @@ Predictions were converted from log-price back to the original price scale using
 | RMSE | 204,713.91 |
 | R² | 0.94587 |
 
-### Interpretation
+## Interpretation
 
-The R² score of approximately 0.946 means that the model explains about 94.6% of the variation in selling prices in the test set.
+The R² score of approximately `0.946` means that the model explains about 94.6% of the variation in selling prices in the test set.
 
-The MAE is approximately 69,043 price units, representing the average absolute prediction error.
+The MAE is approximately `69,043` price units. This represents the average absolute difference between the predicted and actual selling prices.
 
-The RMSE is approximately 204,714. It is higher than MAE because RMSE gives greater weight to large errors.
+The RMSE is approximately `204,714` price units.
 
-The model performs well overall, although some high-priced vehicles have larger prediction errors.
+RMSE is higher than MAE because RMSE gives greater weight to large prediction errors. Therefore, some cars have substantially larger prediction errors than the typical prediction.
 
-## Feature Importance
+Overall, the model performs strongly on the test set, although very expensive vehicles can still be more difficult to predict accurately.
 
-Feature importance from the final Random Forest model was analysed after preprocessing.
+---
 
-The most important features were:
+# Feature Importance
+
+Feature importance was analysed from the final Random Forest model after preprocessing.
+
+The most important features included:
 
 1. `year`
 2. `max_power`
 3. `engine`
 
-`km_driven` and `mileage` also contribute to predictions.
+Other relevant features included:
 
-This suggests that vehicle age and performance-related characteristics are important factors in used-car selling prices. Newer cars and cars with greater engine capacity or higher power tend to have higher predicted prices.
+- `km_driven`
+- `mileage`
 
-## Dash Application
+This suggests that vehicle age and performance-related characteristics have a strong relationship with used-car selling prices in this dataset.
 
-A Dash application was created to allow users to enter vehicle information and obtain a predicted selling price.
+For example, newer vehicles generally have higher selling prices, while engine and power characteristics provide additional information about the vehicle's market value.
 
-The saved model is:
+Feature importance indicates which variables are useful for prediction, but it should not be interpreted as proof of a causal relationship.
 
-```text
-app/code/car_price_model.joblib
-```
+---
+
+# Dash Prediction Application
+
+A Dash web application was developed to allow users to enter vehicle information and obtain a predicted selling price.
 
 The application accepts:
 
@@ -306,13 +471,47 @@ The application accepts:
 - Max power
 - Seats
 
-The model predicts log-price, and the application converts it back to the original selling-price scale using `np.exp()`.
+The saved model is:
 
-## Docker
+```text
+app/code/car_price_model.joblib
+```
 
-The application can be run in Docker.
+The application loads the complete trained pipeline and passes the user input directly to the model.
 
-Project app structure:
+The model predicts the log-transformed selling price.
+
+The application then converts the prediction back to the original price scale:
+
+```python
+predicted_price = np.exp(predicted_log_price[0])
+```
+
+The predicted selling price is then displayed to the user.
+
+---
+
+# Public Application
+
+The Dash application has been deployed as a public web service.
+
+**Public URL:**
+
+https://st127260-a1-prediction.onrender.com
+
+Users can open the URL in a web browser, enter the vehicle information, and receive a predicted selling price.
+
+The application is deployed using Docker and hosted on Render.
+
+> Note: The application uses Render's free hosting tier, so the service may temporarily sleep after a period of inactivity. The first request after sleeping may take some time while the service starts again.
+
+---
+
+# Docker
+
+The Dash application is containerized using Docker.
+
+The application structure is:
 
 ```text
 app/
@@ -324,9 +523,25 @@ app/
     └── car_price_model.joblib
 ```
 
-The application uses `scikit-learn==1.5.2`, matching the scikit-learn version used when the saved model was created. Pinning this version helps avoid compatibility problems when loading the `.joblib` model.
+The Docker image uses:
 
-## Project Structure
+```dockerfile
+FROM python:3.12-slim
+```
+
+The application listens on `0.0.0.0` and uses the `PORT` environment variable when provided by the hosting platform.
+
+The `scikit-learn` version is pinned to:
+
+```text
+scikit-learn==1.5.2
+```
+
+This matches the version used when the saved model was created and helps reduce compatibility problems when loading the `.joblib` file.
+
+---
+
+# Project Structure
 
 ```text
 project/
@@ -345,11 +560,13 @@ project/
 └── README.md
 ```
 
-## How to Run
+---
 
-### Run with Python
+# How to Run Locally
 
-Install the dependencies:
+## Run with Python
+
+Install the required dependencies:
 
 ```bash
 python3 -m pip install -r app/code/requirements.txt
@@ -367,7 +584,9 @@ Then open:
 http://localhost:8050
 ```
 
-### Run with Docker
+---
+
+## Run with Docker
 
 From the project root:
 
@@ -387,14 +606,20 @@ To stop the application:
 docker compose -f app/docker-compose.yml down
 ```
 
-## Conclusion
+---
 
-The project demonstrates a complete regression workflow for used-car price prediction.
+# Conclusion
 
-The dataset was cleaned according to the assignment requirements, missing values were handled inside the preprocessing pipeline, categorical features were one-hot encoded, continuous numerical features were scaled, and the target was log-transformed.
+This project demonstrates a complete machine-learning workflow for used-car price prediction.
 
-Five regression models were compared using 5-fold cross-validation. Random Forest achieved the lowest CV RMSE and was selected for GridSearchCV tuning.
+The dataset was cleaned according to the assignment requirements, including removing CNG and LPG vehicles, handling the owner feature, removing Test Drive Cars, extracting the vehicle brand, cleaning numerical features, and dropping the torque feature.
 
-The tuned Random Forest achieved an R² of approximately 0.946 on the untouched test set. This indicates strong predictive performance, although unusually expensive vehicles remain more difficult to predict accurately.
+The target variable was log-transformed because the original selling-price distribution was highly right-skewed.
 
-The final trained model was saved and integrated into a Dash application so that users can enter vehicle information and receive a predicted selling price.
+The data was split into training and test sets before model fitting. Preprocessing was implemented inside machine-learning pipelines to prevent data leakage during cross-validation and model training.
+
+Five regression algorithms were compared using 5-fold cross-validation. Random Forest achieved the lowest CV RMSE and was therefore selected for hyperparameter tuning.
+
+The tuned Random Forest achieved an R² of approximately `0.946` on the untouched test set.
+
+Finally, the trained pipeline was saved and integrated into a Dash application. The application was containerized using Docker and deployed publicly so users can enter vehicle information and receive a predicted selling price.
