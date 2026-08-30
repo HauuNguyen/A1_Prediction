@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import joblib
-
+import os
 from pathlib import Path
 from dash import Dash, html, dcc, Input, Output, State
 
@@ -267,8 +267,10 @@ def predict_price(
 # --------------------------------------------------
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8050))
+
     app.run(
         host="0.0.0.0",
-        port=8050,
+        port=port,
         debug=False,
     )
